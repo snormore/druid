@@ -35,6 +35,8 @@ import io.druid.guice.LifecycleModule;
 import io.druid.guice.ManageLifecycle;
 import io.druid.guice.NodeTypeConfig;
 import io.druid.query.QuerySegmentWalker;
+import io.druid.query.QueryWatcher;
+import io.druid.server.QueryManager;
 import io.druid.server.QueryResource;
 import io.druid.server.coordination.ServerManager;
 import io.druid.server.coordination.ZkCoordinator;
@@ -68,9 +70,16 @@ public class CliHistorical extends ServerRunnable
           @Override
           public void configure(Binder binder)
           {
+            binder.bind(QueryWatcher.class)
+                  .to(QueryManager.class)
+                  .in(LazySingleton.class);
+            binder.bind(QueryManager.class)
+                  .in(LazySingleton.class);
+
             binder.bind(ServerManager.class).in(LazySingleton.class);
             binder.bind(ZkCoordinator.class).in(ManageLifecycle.class);
             binder.bind(QuerySegmentWalker.class).to(ServerManager.class).in(LazySingleton.class);
+
 
             binder.bind(NodeTypeConfig.class).toInstance(new NodeTypeConfig("historical"));
             binder.bind(JettyServerInitializer.class).to(QueryJettyServerInitializer.class).in(LazySingleton.class);

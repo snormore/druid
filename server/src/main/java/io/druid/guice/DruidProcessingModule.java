@@ -21,6 +21,7 @@ package io.druid.guice;
 
 import com.google.common.base.Supplier;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.google.inject.Binder;
 import com.google.inject.Module;
 import com.google.inject.Provides;
@@ -40,6 +41,10 @@ import io.druid.server.VMUtils;
 
 import java.nio.ByteBuffer;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.PriorityBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -65,10 +70,11 @@ public class DruidProcessingModule implements Module
   )
   {
     return new MetricsEmittingExecutorService(
-        PrioritizedExecutorService.create(
-            lifecycle,
-            config
-        ),
+        Executors.newFixedThreadPool(config.getNumThreads(), new ThreadFactoryBuilder().setDaemon(true).setNameFormat(config.getFormatString()).build()),
+//        PrioritizedExecutorService.create(
+//            lifecycle,
+//            config
+//        ),
         emitter,
         new ServiceMetricEvent.Builder()
     );

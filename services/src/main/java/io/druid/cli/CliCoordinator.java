@@ -40,6 +40,8 @@ import io.druid.guice.JsonConfigProvider;
 import io.druid.guice.LazySingleton;
 import io.druid.guice.LifecycleModule;
 import io.druid.guice.ManageLifecycle;
+import io.druid.query.QueryWatcher;
+import io.druid.server.QueryManager;
 import io.druid.server.coordinator.DruidCoordinator;
 import io.druid.server.coordinator.DruidCoordinatorConfig;
 import io.druid.server.coordinator.LoadQueueTaskMaster;
@@ -93,6 +95,10 @@ public class CliCoordinator extends ServerRunnable
 
             binder.bind(RedirectFilter.class).in(LazySingleton.class);
             binder.bind(RedirectInfo.class).to(CoordinatorRedirectInfo.class).in(LazySingleton.class);
+
+            binder.bind(QueryWatcher.class)
+                  .to(QueryManager.class)
+                  .in(LazySingleton.class);
 
             binder.bind(DatabaseSegmentManager.class)
                   .toProvider(DatabaseSegmentManagerProvider.class)

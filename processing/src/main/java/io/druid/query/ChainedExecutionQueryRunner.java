@@ -25,6 +25,9 @@ import com.google.common.base.Throwables;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Ordering;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.ListeningExecutorService;
 import com.metamx.common.ISE;
 import com.metamx.common.guava.BaseSequence;
 import com.metamx.common.guava.MergeIterable;
@@ -35,11 +38,7 @@ import com.metamx.common.logger.Logger;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 
 /**
  * A QueryRunner that combines a list of other QueryRunners and executes them in parallel on an executor.
@@ -59,27 +58,31 @@ public class ChainedExecutionQueryRunner<T> implements QueryRunner<T>
   private static final Logger log = new Logger(ChainedExecutionQueryRunner.class);
 
   private final Iterable<QueryRunner<T>> queryables;
-  private final ExecutorService exec;
+  private final ListeningExecutorService exec;
   private final Ordering<T> ordering;
+  private final QueryWatcher queryWatcher;
 
   public ChainedExecutionQueryRunner(
-      ExecutorService exec,
+      ListeningExecutorService exec,
       Ordering<T> ordering,
+      QueryWatcher queryWatcher,
       QueryRunner<T>... queryables
   )
   {
-    this(exec, ordering, Arrays.asList(queryables));
+    this(exec, ordering, queryWatcher, Arrays.asList(queryables));
   }
 
   public ChainedExecutionQueryRunner(
-      ExecutorService exec,
+      ListeningExecutorService exec,
       Ordering<T> ordering,
+      QueryWatcher queryWatcher,
       Iterable<QueryRunner<T>> queryables
   )
   {
     this.exec = exec;
     this.ordering = ordering;
     this.queryables = Iterables.unmodifiableIterable(Iterables.filter(queryables, Predicates.notNull()));
+    this.queryWatcher = queryWatcher;
   }
 
   @Override
@@ -94,71 +97,76 @@ public class ChainedExecutionQueryRunner<T> implements QueryRunner<T>
           public Iterator<T> make()
           {
             // Make it a List<> to materialize all of the values (so that it will submit everything to the executor)
-            List<Future<List<T>>> futures = Lists.newArrayList(
-                Iterables.transform(
-                    queryables,
-                    new Function<QueryRunner<T>, Future<List<T>>>()
-                    {
-                      @Override
-                      public Future<List<T>> apply(final QueryRunner<T> input)
-                      {
-                        return exec.submit(
-                            new AbstractPrioritizedCallable<List<T>>(priority)
-                            {
-                              @Override
-                              public List<T> call() throws Exception
-                              {
-                                try {
-                                  if (input == null) {
-                                    throw new ISE("Input is null?! How is this possible?!");
-                                  }
+            ListenableFuture<List<Iterable<T>>> futures = Futures.allAsList(
+                Lists.newArrayList(
+                    Iterables.transform(
+                        queryables,
+                        new Function<QueryRunner<T>, ListenableFuture<Iterable<T>>>()
+                        {
+                          @Override
+                          public ListenableFuture<Iterable<T>> apply(final QueryRunner<T> input)
+                          {
+                            return exec.submit(
+                                new AbstractPrioritizedCallable<Iterable<T>>(priority)
+                                {
+                                  @Override
+                                  public Iterable<T> call() throws Exception
+                                  {
+                                    try {
+                                      if (input == null) {
+                                        throw new ISE("Input is null?! How is this possible?!");
+                                      }
+                                      int i = 0;
+                                      while(!Thread.interrupted() && i < 30) {
+                                        i++;
+                                        System.out.printf("Waiting %d ...\n", i);
+                                        Thread.sleep(1000);
+                                      }
+                                      if(Thread.currentThread().isInterrupted()) {
+                                        throw new RuntimeException("I got killed");
+                                      }
 
-                                  Sequence<T> result = input.run(query);
-                                  if (result == null) {
-                                    throw new ISE("Got a null result! Segments are missing!");
-                                  }
+                                      Sequence<T> result = input.run(query);
+                                      if (result == null) {
+                                        throw new ISE("Got a null result! Segments are missing!");
+                                      }
 
-                                  List<T> retVal = Sequences.toList(result, Lists.<T>newArrayList());
-                                  if (retVal == null) {
-                                    throw new ISE("Got a null list of results! WTF?!");
-                                  }
+                                      List<T> retVal = Sequences.toList(result, Lists.<T>newArrayList());
+                                      if (retVal == null) {
+                                        throw new ISE("Got a null list of results! WTF?!");
+                                      }
 
-                                  return retVal;
+                                      return retVal;
+                                    }
+                                    catch (Exception e) {
+                                      log.error(e, "Exception with one of the sequences!");
+                                      throw Throwables.propagate(e);
+                                    }
+                                  }
                                 }
-                                catch (Exception e) {
-                                  log.error(e, "Exception with one of the sequences!");
-                                  throw Throwables.propagate(e);
-                                }
-                              }
-                            }
-                        );
-                      }
-                    }
+                            );
+                          }
+                        }
+                    )
                 )
             );
 
-            return new MergeIterable<T>(
-                ordering.nullsFirst(),
-                Iterables.transform(
-                    futures,
-                    new Function<Future<List<T>>, Iterable<T>>()
-                    {
-                      @Override
-                      public Iterable<T> apply(Future<List<T>> input)
-                      {
-                        try {
-                          return input.get();
-                        }
-                        catch (InterruptedException e) {
-                          throw new RuntimeException(e);
-                        }
-                        catch (ExecutionException e) {
-                          throw new RuntimeException(e);
-                        }
-                      }
-                    }
-                )
-            ).iterator();
+            queryWatcher.registerQuery(query, futures);
+
+            try {
+              return new MergeIterable<>(
+                  ordering.nullsFirst(),
+                  futures.get()
+              ).iterator();
+            }
+            catch (InterruptedException e) {
+              log.warn(e, "Query interruped, cancelling pending results, query id [%s]", query.getId());
+              futures.cancel(true);
+              throw new RuntimeException(e);
+            }
+            catch (ExecutionException e) {
+              throw new RuntimeException(e);
+            }
           }
 
           @Override
