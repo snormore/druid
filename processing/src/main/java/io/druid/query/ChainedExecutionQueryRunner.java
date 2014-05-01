@@ -28,6 +28,7 @@ import com.google.common.collect.Ordering;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListeningExecutorService;
+import com.google.common.util.concurrent.MoreExecutors;
 import com.metamx.common.ISE;
 import com.metamx.common.guava.BaseSequence;
 import com.metamx.common.guava.MergeIterable;
@@ -39,6 +40,7 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
 
 /**
  * A QueryRunner that combines a list of other QueryRunners and executes them in parallel on an executor.
@@ -63,7 +65,7 @@ public class ChainedExecutionQueryRunner<T> implements QueryRunner<T>
   private final QueryWatcher queryWatcher;
 
   public ChainedExecutionQueryRunner(
-      ListeningExecutorService exec,
+      ExecutorService exec,
       Ordering<T> ordering,
       QueryWatcher queryWatcher,
       QueryRunner<T>... queryables
@@ -73,13 +75,15 @@ public class ChainedExecutionQueryRunner<T> implements QueryRunner<T>
   }
 
   public ChainedExecutionQueryRunner(
-      ListeningExecutorService exec,
+      ExecutorService exec,
       Ordering<T> ordering,
       QueryWatcher queryWatcher,
       Iterable<QueryRunner<T>> queryables
   )
   {
-    this.exec = exec;
+    // listeningDecorator will leave PrioritizedExecutorService unchanged,
+    // since it already implements ListeningExecutorService
+    this.exec = MoreExecutors.listeningDecorator(exec);
     this.ordering = ordering;
     this.queryables = Iterables.unmodifiableIterable(Iterables.filter(queryables, Predicates.notNull()));
     this.queryWatcher = queryWatcher;
