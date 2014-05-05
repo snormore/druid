@@ -70,11 +70,10 @@ public class DruidProcessingModule implements Module
   )
   {
     return new MetricsEmittingExecutorService(
-        Executors.newFixedThreadPool(config.getNumThreads(), new ThreadFactoryBuilder().setDaemon(true).setNameFormat(config.getFormatString()).build()),
-//        PrioritizedExecutorService.create(
-//            lifecycle,
-//            config
-//        ),
+        PrioritizedExecutorService.create(
+            lifecycle,
+            config
+        ),
         emitter,
         new ServiceMetricEvent.Builder()
     );

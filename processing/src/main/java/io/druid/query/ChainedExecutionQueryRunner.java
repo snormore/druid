@@ -120,15 +120,6 @@ public class ChainedExecutionQueryRunner<T> implements QueryRunner<T>
                                       if (input == null) {
                                         throw new ISE("Input is null?! How is this possible?!");
                                       }
-                                      int i = 0;
-                                      while(!Thread.interrupted() && i < 30) {
-                                        i++;
-                                        System.out.printf("Waiting %d ...\n", i);
-                                        Thread.sleep(1000);
-                                      }
-                                      if(Thread.currentThread().isInterrupted()) {
-                                        throw new RuntimeException("I got killed");
-                                      }
 
                                       Sequence<T> result = input.run(query);
                                       if (result == null) {
@@ -164,12 +155,12 @@ public class ChainedExecutionQueryRunner<T> implements QueryRunner<T>
               ).iterator();
             }
             catch (InterruptedException e) {
-              log.warn(e, "Query interruped, cancelling pending results, query id [%s]", query.getId());
+              log.warn(e, "Query interrupted, cancelling pending results, query id [%s]", query.getId());
               futures.cancel(true);
-              throw new RuntimeException(e);
+              throw new QueryInterruptedException(e);
             }
             catch (ExecutionException e) {
-              throw new RuntimeException(e);
+              throw Throwables.propagate(e.getCause());
             }
           }
 
