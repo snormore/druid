@@ -28,6 +28,8 @@ import com.ning.compress.lzf.LZFDecoder;
 import io.druid.collections.ResourceHolder;
 import io.druid.segment.CompressedPools;
 import net.jpountz.lz4.LZ4Factory;
+import net.jpountz.lz4.LZ4FastDecompressor;
+import net.jpountz.lz4.LZ4SafeDecompressor;
 import net.jpountz.lz4.LZ4UnknownSizeDecompressor;
 
 import java.io.IOException;
@@ -159,8 +161,8 @@ public class CompressedObjectStrategy<T extends Buffer> implements ObjectStrateg
 
   public static class LZ4Decompressor implements Decompressor
   {
-    private final LZ4UnknownSizeDecompressor lz4 = LZ4Factory.fastestJavaInstance().unknownSizeDecompressor();
-    private final net.jpountz.lz4.LZ4Decompressor lz4Fast = LZ4Factory.fastestJavaInstance().decompressor();
+    private final LZ4SafeDecompressor lz4 = LZ4Factory.fastestJavaInstance().safeDecompressor();
+    private final LZ4FastDecompressor lz4Fast = LZ4Factory.fastestJavaInstance().fastDecompressor();
 
     @Override
     public void decompress(ByteBuffer in, int numBytes, ByteBuffer out)
