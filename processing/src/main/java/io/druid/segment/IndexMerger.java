@@ -52,6 +52,7 @@ import io.druid.query.aggregation.AggregatorFactory;
 import io.druid.query.aggregation.ToLowerCaseAggregatorFactory;
 import io.druid.segment.data.ByteBufferWriter;
 import io.druid.segment.data.CompressedLongsSupplierSerializer;
+import io.druid.segment.data.CompressedObjectStrategy;
 import io.druid.segment.data.ConciseCompressedIndexedInts;
 import io.druid.segment.data.GenericIndexed;
 import io.druid.segment.data.GenericIndexedWriter;
@@ -598,7 +599,8 @@ public class IndexMerger
     Iterable<Rowboat> theRows = rowMergerFn.apply(boats);
 
     CompressedLongsSupplierSerializer timeWriter = CompressedLongsSupplierSerializer.create(
-        ioPeon, "little_end_time", IndexIO.BYTE_ORDER
+        ioPeon, "little_end_time", IndexIO.BYTE_ORDER,
+        CompressedObjectStrategy.CompressionStrategy.LZ4 // TODO define this somewhere else
     );
 
     timeWriter.open();

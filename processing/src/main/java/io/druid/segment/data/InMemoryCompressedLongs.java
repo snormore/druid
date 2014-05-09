@@ -37,6 +37,7 @@ import java.util.List;
  */
 public class InMemoryCompressedLongs implements IndexedLongs
 {
+  public static final CompressedObjectStrategy.CompressionStrategy COMPRESSION = CompressedObjectStrategy.CompressionStrategy.LZ4;
   private final CompressedLongBufferObjectStrategy strategy;
   private final int sizePer;
 
@@ -56,7 +57,11 @@ public class InMemoryCompressedLongs implements IndexedLongs
   )
   {
     this.sizePer = sizePer;
-    strategy = CompressedLongBufferObjectStrategy.getBufferForOrder(order);
+    strategy = CompressedLongBufferObjectStrategy.getBufferForOrder(
+        order,
+        COMPRESSION,
+        sizePer
+    );
 
     endBuffer = LongBuffer.allocate(sizePer);
     endBuffer.mark();
@@ -194,7 +199,8 @@ public class InMemoryCompressedLongs implements IndexedLongs
                 Arrays.<ResourceHolder<LongBuffer>>asList(StupidResourceHolder.create(longBufCopy))
             ),
             strategy
-        )
+        ),
+        COMPRESSION
     );
   }
 
