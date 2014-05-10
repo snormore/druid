@@ -43,6 +43,6 @@ public class QueryManager implements QueryWatcher
   }
   public void registerQuery(Query query, ListenableFuture future)
   {
-    queries.putIfAbsent(query.getId(), future);
+    queries.put(query.getId(), future);
   }
 }
