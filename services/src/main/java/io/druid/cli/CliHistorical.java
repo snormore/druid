@@ -70,12 +70,6 @@ public class CliHistorical extends ServerRunnable
           @Override
           public void configure(Binder binder)
           {
-            binder.bind(QueryWatcher.class)
-                  .to(QueryManager.class)
-                  .in(LazySingleton.class);
-            binder.bind(QueryManager.class)
-                  .in(LazySingleton.class);
-
             binder.bind(ServerManager.class).in(LazySingleton.class);
             binder.bind(ZkCoordinator.class).in(ManageLifecycle.class);
             binder.bind(QuerySegmentWalker.class).to(ServerManager.class).in(LazySingleton.class);
