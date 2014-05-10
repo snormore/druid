@@ -21,6 +21,10 @@ package io.druid.query;
 
 public class QueryInterruptedException extends RuntimeException
 {
+  public QueryInterruptedException() {
+    super();
+  }
+
   public QueryInterruptedException(String message)
   {
     super(message);
