@@ -19,16 +19,24 @@
 
 package io.druid.server;
 
+import com.fasterxml.jackson.core.JsonGenerationException;
+import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.google.api.client.repackaged.com.google.common.base.Throwables;
 import com.google.common.base.Charsets;
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.io.ByteStreams;
 import com.google.common.io.Closeables;
 import com.google.inject.Inject;
+import com.metamx.common.guava.Accumulator;
 import com.metamx.common.guava.Sequence;
 import com.metamx.common.guava.Sequences;
+import com.metamx.common.guava.Yielder;
+import com.metamx.common.guava.YieldingAccumulator;
 import com.metamx.emitter.EmittingLogger;
 import com.metamx.emitter.service.ServiceEmitter;
 import com.metamx.emitter.service.ServiceMetricEvent;
@@ -82,8 +90,12 @@ public class QueryResource
       QueryManager queryManager
   )
   {
-    this.jsonMapper = jsonMapper;
-    this.smileMapper = smileMapper;
+    this.jsonMapper = jsonMapper.copy();
+    this.jsonMapper.getFactory().configure(JsonGenerator.Feature.AUTO_CLOSE_TARGET, false);
+
+    this.smileMapper = smileMapper.copy();
+    this.smileMapper.getFactory().configure(JsonGenerator.Feature.AUTO_CLOSE_TARGET, false);
+
     this.texasRanger = texasRanger;
     this.emitter = emitter;
     this.requestLogger = requestLogger;
@@ -103,7 +115,7 @@ public class QueryResource
   @Produces("application/json")
   public void doPost(
       @Context HttpServletRequest req,
-      @Context HttpServletResponse resp
+      @Context final HttpServletResponse resp
   ) throws ServletException, IOException
   {
     final long start = System.currentTimeMillis();
@@ -132,20 +144,30 @@ public class QueryResource
         log.debug("Got query [%s]", query);
       }
 
-      Sequence<?> results = query.run(texasRanger);
+      Sequence results = query.run(texasRanger);
 
       if (results == null) {
         results = Sequences.empty();
       }
 
-      resp.setStatus(200);
-      resp.setContentType("application/x-javascript");
-      resp.setHeader("X-Druid-Query-Id", query.getId());
-
       out = resp.getOutputStream();
-      jsonWriter.writeValue(out, results);
 
-//      JsonGenerator jgen = jsonWriter.getFactory().createGenerator(out);
+      JsonGenerator jgen = objectMapper.getFactory().createGenerator(out);
+
+      final String queryIdHeader = query.getId();
+      results = onAccumulate(results, new Runnable()
+                   {
+                     @Override
+                     public void run()
+                     {
+                       resp.setStatus(200);
+                       resp.setContentType("application/x-javascript");
+                       resp.setHeader("X-Druid-Query-Id", queryIdHeader);
+                     }
+                   });
+
+      jsonWriter.writeValue(out, results);
+      out.write("\n".getBytes(Charsets.UTF_8));
 
       long requestTime = System.currentTimeMillis() - start;
 
@@ -221,5 +243,26 @@ public class QueryResource
       resp.flushBuffer();
       Closeables.closeQuietly(out);
     }
+  }
+
+  private static <T> Sequence onAccumulate(final Sequence<T> seq, final Runnable effect)
+  {
+    return new Sequence<T>()
+    {
+      @Override
+      public <OutType> OutType accumulate(OutType initValue, Accumulator<OutType, T> accumulator)
+      {
+        effect.run();
+        return seq.accumulate(initValue, accumulator);
+      }
+
+      @Override
+      public <OutType> Yielder<OutType> toYielder(
+          OutType initValue, YieldingAccumulator<OutType, T> accumulator
+      )
+      {
+        return seq.toYielder(initValue, accumulator);
+      }
+    };
   }
 }

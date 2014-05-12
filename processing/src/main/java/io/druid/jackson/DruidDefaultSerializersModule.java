@@ -102,21 +102,23 @@ public class DruidDefaultSerializersModule extends SimpleModule
           public void serialize(Sequence value, final JsonGenerator jgen, SerializerProvider provider)
               throws IOException, JsonProcessingException
           {
-            jgen.writeStartArray();
             value.accumulate(
-                null,
-                new Accumulator()
+                true,
+                new Accumulator<Boolean, Object>()
                 {
                   @Override
-                  public Object accumulate(Object o, Object o1)
+                  public Boolean accumulate(Boolean first, Object o1)
                   {
                     try {
+                      if(first) {
+                        jgen.writeStartArray();
+                      }
                       jgen.writeObject(o1);
                     }
                     catch (IOException e) {
                       throw Throwables.propagate(e);
                     }
-                    return o;
+                    return false;
                   }
                 }
             );
