@@ -126,6 +126,25 @@ public class DruidDefaultSerializersModule extends SimpleModule
           }
         }
     );
+    addSerializer(
+        Yielder.class,
+        new JsonSerializer<Yielder>()
+        {
+          @Override
+          public void serialize(Yielder yielder, final JsonGenerator jgen, SerializerProvider provider)
+              throws IOException, JsonProcessingException
+          {
+            jgen.writeStartArray();
+            while (!yielder.isDone()) {
+              final Object o = yielder.get();
+              jgen.writeObject(o);
+              yielder = yielder.next(null);
+              jgen.flush();
+            }
+            jgen.writeEndArray();
+          }
+        }
+    );
     addSerializer(ByteOrder.class, ToStringSerializer.instance);
     addDeserializer(
         ByteOrder.class,
