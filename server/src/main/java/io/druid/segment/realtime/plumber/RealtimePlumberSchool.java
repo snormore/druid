@@ -28,6 +28,7 @@ import com.metamx.emitter.service.ServiceEmitter;
 import io.druid.client.ServerView;
 import io.druid.guice.annotations.Processing;
 import io.druid.query.QueryRunnerFactoryConglomerate;
+import io.druid.segment.column.ColumnConfig;
 import io.druid.segment.indexing.DataSchema;
 import io.druid.segment.indexing.RealtimeTuningConfig;
 import io.druid.segment.loading.DataSegmentPusher;
@@ -50,6 +51,7 @@ public class RealtimePlumberSchool implements PlumberSchool
   private final SegmentPublisher segmentPublisher;
   private final ServerView serverView;
   private final ExecutorService queryExecutorService;
+  private final ColumnConfig columnConfig;
 
   // Backwards compatible
   private final Period windowPeriod;
@@ -68,6 +70,7 @@ public class RealtimePlumberSchool implements PlumberSchool
       @JacksonInject SegmentPublisher segmentPublisher,
       @JacksonInject ServerView serverView,
       @JacksonInject @Processing ExecutorService executorService,
+      @JacksonInject ColumnConfig columnConfig,
       // Backwards compatible
       @JsonProperty("windowPeriod") Period windowPeriod,
       @JsonProperty("basePersistDirectory") File basePersistDirectory,
@@ -84,6 +87,7 @@ public class RealtimePlumberSchool implements PlumberSchool
     this.segmentPublisher = segmentPublisher;
     this.serverView = serverView;
     this.queryExecutorService = executorService;
+    this.columnConfig = columnConfig;
     this.windowPeriod = windowPeriod;
     this.basePersistDirectory = basePersistDirectory;
     this.segmentGranularity = segmentGranularity;
@@ -148,7 +152,8 @@ public class RealtimePlumberSchool implements PlumberSchool
         queryExecutorService,
         dataSegmentPusher,
         segmentPublisher,
-        serverView
+        serverView,
+        columnConfig
     );
   }
 
