@@ -183,7 +183,7 @@ public class CachingClusteredClient<T> implements QueryRunner<T>
     }
 
     if (queryCacheKey != null) {
-      Map<Pair<ServerSelector, SegmentDescriptor>, Cache.NamedKey> cacheKeys = Maps.newHashMap();
+      Map<Pair<ServerSelector, SegmentDescriptor>, Cache.NamedKey> cacheKeys = Maps.newLinkedHashMap();
       for (Pair<ServerSelector, SegmentDescriptor> segment : segments) {
         final Cache.NamedKey segmentCacheKey = CacheUtil.computeSegmentCacheKey(
             segment.lhs.getSegment().getIdentifier(),
